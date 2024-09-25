@@ -6,7 +6,7 @@ from app.routes.auth import get_current_user
 
 router = APIRouter()
 
-@router.put("/merchants/update")
+@router.put("/merchants/update", response_model=dict)
 async def update_merchant(update_data: UpdateMerchant, current_user: dict = Depends(get_current_user)):
     update_fields = {}
     if update_data.name:
@@ -20,10 +20,13 @@ async def update_merchant(update_data: UpdateMerchant, current_user: dict = Depe
             detail="Нет данных для обновления."
         )
 
-    await db.merchants.update_one({"email": current_user["email"]}, {"$set": update_fields})
+    await db.merchants.update_one(
+        {"email": current_user["email"]},
+        {"$set": update_fields}
+    )
     return {"status": "Обновление успешно"}
 
-@router.delete("/merchants/delete")
+@router.delete("/merchants/delete", response_model=dict)
 async def delete_merchant(current_user: dict = Depends(get_current_user)):
     await db.merchants.delete_one({"email": current_user["email"]})
     return {"status": "Аккаунт удален"}

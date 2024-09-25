@@ -2,17 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from datetime import timedelta, datetime
-from app.models import MerchantRegister
+from app.models import MerchantRegister, Token
 from app.database import db
 from app.security import hash_password, verify_password, create_access_token
 
-# Настройка OAuth2 для работы с токенами
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-# Создание маршрутизатора
 router = APIRouter()
 
-# Функция для получения текущего пользователя по токену
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -20,7 +16,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, "your_secret_key", algorithms=["HS256"])  # Замените на ваш секретный ключ
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
         if email is None:
             raise credentials_exception
@@ -31,7 +27,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
     return user
 
-# Маршрут для регистрации мерчанта
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register_merchant(merchant: MerchantRegister):
     existing_merchant = await db.merchants.find_one({"email": merchant.email})
@@ -51,8 +46,7 @@ async def register_merchant(merchant: MerchantRegister):
     result = await db.merchants.insert_one(new_merchant)
     return {"status": "registered", "merchant_id": str(result.inserted_id)}
 
-# Маршрут для авторизации и получения токена
-@router.post("/token")
+@router.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     existing_merchant = await db.merchants.find_one({"email": form_data.username})
     if not existing_merchant or not verify_password(form_data.password, existing_merchant["password"]):
@@ -62,7 +56,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    access_token_expires = timedelta(minutes=30)
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": existing_merchant["email"]}, expires_delta=access_token_expires
     )
